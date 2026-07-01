@@ -3,8 +3,21 @@ const express  = require('express');
 const router   = express.Router();
 const multer   = require('multer');
 const Document = require('../models/Document');
+const User     = require('../models/User');
 const { uid }  = require('../utils/helpers');
 const { authenticate, adminOnly } = require('../middleware/auth');
+
+// Admin: confirm the target employee belongs to this admin before letting
+// them view/upload/delete that employee's documents.
+async function canAccessUserDocs(req, userId) {
+  if (req.user.role !== 'admin') {
+    return req.user.userId === userId;
+  }
+  if (req.user.userId === userId) return true; // admin accessing own docs (rare)
+  const target = await User.findById(userId, 'admin_id role');
+  if (!target) return false;
+  return target.role === 'employee' && target.admin_id === req.user.userId;
+}
 
 // Multer — memory storage (files stored as Base64 in DB)
 const upload = multer({
@@ -27,7 +40,7 @@ router.get('/:userId', authenticate, async (req, res) => {
   try {
     const { userId } = req.params;
 
-    if (req.user.role !== 'admin' && req.user.userId !== userId) {
+    if (!(await canAccessUserDocs(req, userId))) {
       return res.status(403).json({ error: 'Access denied.' });
     }
 
@@ -55,7 +68,7 @@ router.get('/:userId/:docType/view', authenticate, async (req, res) => {
   try {
     const { userId, docType } = req.params;
 
-    if (req.user.role !== 'admin' && req.user.userId !== userId) {
+    if (!(await canAccessUserDocs(req, userId))) {
       return res.status(403).json({ error: 'Access denied.' });
     }
 
@@ -100,7 +113,7 @@ router.post('/', authenticate, upload.single('file'), async (req, res) => {
     if (!fileData) {
       return res.status(400).json({ error: 'File data required.' });
     }
-    if (req.user.role !== 'admin' && req.user.userId !== userId) {
+    if (!(await canAccessUserDocs(req, userId))) {
       return res.status(403).json({ error: 'Access denied.' });
     }
 
@@ -143,7 +156,7 @@ router.delete('/:userId/:docType', authenticate, async (req, res) => {
   try {
     const { userId, docType } = req.params;
 
-    if (req.user.role !== 'admin' && req.user.userId !== userId) {
+    if (!(await canAccessUserDocs(req, userId))) {
       return res.status(403).json({ error: 'Access denied.' });
     }
 

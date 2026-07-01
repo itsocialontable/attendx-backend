@@ -2,6 +2,7 @@
 const express       = require('express');
 const router        = express.Router();
 const Notification  = require('../models/Notification');
+const User           = require('../models/User');
 const { uid, todayIST } = require('../utils/helpers');
 const { authenticate, adminOnly } = require('../middleware/auth');
 
@@ -104,6 +105,12 @@ router.post('/send', adminOnly, async (req, res) => {
       return res.status(400).json({ error: 'user_id, title and message are required.' });
     }
 
+    // Admin can only notify employees that belong to them
+    const targetEmp = await User.findById(user_id, 'admin_id role');
+    if (!targetEmp || targetEmp.role !== 'employee' || targetEmp.admin_id !== req.user.userId) {
+      return res.status(403).json({ error: 'Access denied. This employee does not belong to your account.' });
+    }
+
     const notif = await Notification.create({
       _id:        uid(),
       user_id,
@@ -132,8 +139,7 @@ router.post('/broadcast', adminOnly, async (req, res) => {
       return res.status(400).json({ error: 'title and message are required.' });
     }
 
-    const User = require('../models/User');
-    const employees = await User.find({ role: 'employee' }, '_id');
+    const employees = await User.find({ role: 'employee', admin_id: req.user.userId }, '_id');
 
     const notifs = employees.map(emp => ({
       _id:        uid(),

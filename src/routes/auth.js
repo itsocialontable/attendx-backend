@@ -4,7 +4,7 @@ const router  = express.Router();
 const bcrypt  = require('bcryptjs');
 const jwt     = require('jsonwebtoken');
 const User    = require('../models/User');
-const { uid } = require('../utils/helpers');
+const { uid, isValidEmail } = require('../utils/helpers');
 const { authenticate } = require('../middleware/auth');
 const { sendOTPEmail } = require('../utils/email');
 
@@ -34,6 +34,11 @@ router.post('/register', async (req, res) => {
     // Required fields
     if (!fullName || !email || !password || !confirmPassword) {
       return res.status(400).json({ error: 'fullName, email, password and confirmPassword are required.' });
+    }
+
+    // Email format check (must contain @ and a valid domain)
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: 'Please enter a valid email address (e.g. name@example.com).' });
     }
 
     // Password match check

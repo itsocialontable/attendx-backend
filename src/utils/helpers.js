@@ -64,4 +64,11 @@ function toMins(timeStr) {
   return h * 60 + m;
 }
 
-module.exports = { uid, fixTime, fixRecord, nowIST, todayIST, timeNowIST, toMins };
+// Basic email format check (must contain text@text.text)
+function isValidEmail(email) {
+  if (!email || typeof email !== 'string') return false;
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return re.test(email.trim());
+}
+
+module.exports = { uid, fixTime, fixRecord, nowIST, todayIST, timeNowIST, toMins, isValidEmail };

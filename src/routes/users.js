@@ -4,7 +4,7 @@ const express = require('express');
 const router  = express.Router();
 const bcrypt  = require('bcryptjs');
 const User    = require('../models/User');
-const { uid } = require('../utils/helpers');
+const { uid, isValidEmail } = require('../utils/helpers');
 const { authenticate, adminOnly } = require('../middleware/auth');
 
 // Format user for response
@@ -110,6 +110,10 @@ router.post('/', adminOnly, async (req, res) => {
       return res.status(400).json({ error: 'fullName, email and password are required.' });
     }
 
+    if (!isValidEmail(loginEmail)) {
+      return res.status(400).json({ error: 'Please enter a valid email address (e.g. name@example.com).' });
+    }
+
     const existing = await User.findOne({ username: loginEmail.trim().toLowerCase() });
     if (existing) {
       return res.status(409).json({ error: 'This email is already registered.' });
@@ -163,6 +167,10 @@ router.put('/:id', adminOnly, async (req, res) => {
     // Ensure this employee belongs to the requesting admin
     if (user.role === 'employee' && user.admin_id !== req.user.userId) {
       return res.status(403).json({ error: 'Access denied. This employee does not belong to your account.' });
+    }
+
+    if (req.body.email !== undefined && req.body.email && !isValidEmail(req.body.email)) {
+      return res.status(400).json({ error: 'Please enter a valid email address (e.g. name@example.com).' });
     }
 
     const fields = [
