@@ -122,4 +122,60 @@ async function sendOTPEmail(toEmail, otp, purpose = 'verification') {
   return false;
 }
 
-module.exports = { sendOTPEmail, SMTP_CONFIGURED, RESEND_CONFIGURED };
+/**
+ * Sends a welcome email to a newly created employee with their login credentials.
+ */
+async function sendWelcomeEmail({ toEmail, employeeName, username, password, companyName }) {
+  const subject = `Welcome to ${companyName} — Your Login Credentials`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+      <div style="background-color: #1a73e8; padding: 24px 32px;">
+        <h2 style="color: #ffffff; margin: 0;">${companyName}</h2>
+        <p style="color: #d0e4ff; margin: 4px 0 0;">Employee Portal — Account Created</p>
+      </div>
+      <div style="padding: 32px;">
+        <p style="font-size: 16px;">Hello <strong>${employeeName}</strong>,</p>
+        <p>Your employee account has been created by your admin. You can now log in to the <strong>${companyName}</strong> attendance portal using the credentials below.</p>
+
+        <div style="background: #f5f5f5; border-radius: 6px; padding: 20px; margin: 24px 0;">
+          <p style="margin: 0 0 8px;"><strong>Login Email / Username:</strong></p>
+          <p style="margin: 0 0 16px; font-size: 15px; color: #1a73e8;">${username}</p>
+          <p style="margin: 0 0 8px;"><strong>Password:</strong></p>
+          <p style="margin: 0; font-size: 15px; color: #1a73e8;">${password}</p>
+        </div>
+
+        <p style="color: #d32f2f; font-size: 13px;">⚠️ Please use the <strong>Employee Login</strong> option only — do not use Admin Login.</p>
+        <p style="font-size: 13px; color: #555;">We recommend changing your password after your first login.</p>
+
+        <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 24px 0;" />
+        <p style="font-size: 12px; color: #888; margin: 0;">This is an automated email from ${companyName}. Please do not reply.</p>
+      </div>
+    </div>
+  `;
+
+  if (RESEND_CONFIGURED) {
+    try {
+      await sendViaResend(toEmail, subject, html);
+      console.log(`\n📧 Welcome email sent via Resend to ${toEmail}\n`);
+      return true;
+    } catch (err) {
+      console.error(`❌ Resend welcome email failed for ${toEmail}:`, err.message);
+    }
+  }
+
+  if (SMTP_CONFIGURED) {
+    try {
+      await sendViaSmtp(toEmail, subject, html);
+      console.log(`\n📧 Welcome email sent via SMTP to ${toEmail}\n`);
+      return true;
+    } catch (err) {
+      console.error(`❌ SMTP welcome email failed for ${toEmail}:`, err.message);
+    }
+  }
+
+  console.log(`\n📧 [No email provider] Welcome email for ${toEmail} — username: ${username}\n`);
+  return false;
+}
+
+module.exports = { sendOTPEmail, sendWelcomeEmail, SMTP_CONFIGURED, RESEND_CONFIGURED };

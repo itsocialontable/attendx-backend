@@ -5,6 +5,7 @@ const router  = express.Router();
 const bcrypt  = require('bcryptjs');
 const User    = require('../models/User');
 const { uid, isValidEmail } = require('../utils/helpers');
+const { sendWelcomeEmail }  = require('../utils/email');
 const { authenticate, adminOnly } = require('../middleware/auth');
 
 // Format user for response
@@ -150,6 +151,18 @@ router.post('/', adminOnly, async (req, res) => {
     });
 
     return res.status(201).json({ success: true, id: newId });
+
+    // Send welcome email to employee (non-blocking — don't await)
+    User.findById(req.user.userId, 'companyName fullName').then(admin => {
+      const company = admin?.companyName || admin?.fullName || 'Your Company';
+      sendWelcomeEmail({
+        toEmail:     loginEmail.trim().toLowerCase(),
+        employeeName: `${displayName.trim()} ${lName?.trim() || ''}`.trim(),
+        username:    loginEmail.trim().toLowerCase(),
+        password:    loginPass,
+        companyName: company,
+      }).catch(err => console.error('Welcome email failed:', err.message));
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
