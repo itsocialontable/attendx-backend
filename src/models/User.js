@@ -32,6 +32,8 @@ const userSchema = new mongoose.Schema({
   bank_ifsc:         { type: String, default: null },
   aadhar_no:         { type: String, default: null },
   pan_no:            { type: String, default: null },
+  // ── Admin Settings ────────────────────────────────────────────
+  max_saturday_offs: { type: Number, default: 2, min: 0, max: 4 }, // 0=no offs, 4=all Saturdays off
   // ── OTP for forget password ───────────────────────────────────
   otp:               { type: String, default: null },
   otp_expires:       { type: Date,   default: null },

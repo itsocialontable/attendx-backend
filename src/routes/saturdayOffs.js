@@ -1,9 +1,20 @@
 // src/routes/saturdayOffs.js — Saturday Off Management (MongoDB)
+// Max saturday offs per month is set by the admin (max_saturday_offs field)
+// Default: 2. Admin can set 0 (no offs) to 4 (all Saturdays off)
 const express     = require('express');
 const router      = express.Router();
 const SaturdayOff = require('../models/SaturdayOff');
+const User        = require('../models/User');
 const { uid }     = require('../utils/helpers');
 const { authenticate, adminOnly } = require('../middleware/auth');
+
+// Helper: get admin's max_saturday_offs setting for a given employee
+async function getMaxOffs(employeeId) {
+  const emp = await User.findById(employeeId, 'admin_id');
+  if (!emp || !emp.admin_id) return 2; // fallback default
+  const admin = await User.findById(emp.admin_id, 'max_saturday_offs');
+  return admin?.max_saturday_offs ?? 2;
+}
 
 /**
  * GET /api/saturday-offs
@@ -15,6 +26,7 @@ router.get('/', authenticate, async (req, res) => {
     if (!userId) return res.status(400).json({ error: 'userId required.' });
 
     const targetMonth = month || new Date().toISOString().substring(0, 7);
+    const maxOffs     = await getMaxOffs(userId);
 
     const rows = await SaturdayOff.find(
       { user_id: userId, month: targetMonth },
@@ -22,8 +34,9 @@ router.get('/', authenticate, async (req, res) => {
 
     return res.json({
       userId,
-      month: targetMonth,
-      offs:  rows.map(r => r.date),
+      month:   targetMonth,
+      offs:    rows.map(r => r.date),
+      maxOffs, // tells frontend how many offs this employee is allowed
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -34,7 +47,7 @@ router.get('/', authenticate, async (req, res) => {
  * POST /api/saturday-offs
  * Toggle Saturday off ON/OFF
  * Body: { userId?, date }
- * Max 2 per month
+ * Max offs per month = admin's max_saturday_offs setting
  */
 router.post('/', authenticate, async (req, res) => {
   try {
@@ -51,19 +64,28 @@ router.post('/', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'The provided date must be a Saturday.' });
     }
 
-    const month = date.substring(0, 7);
+    const month   = date.substring(0, 7);
+    const maxOffs = await getMaxOffs(targetUserId);
+
+    // If admin has set 0 saturday offs — no offs allowed at all
+    if (maxOffs === 0) {
+      return res.status(400).json({ error: 'Saturday offs are not allowed by your admin.' });
+    }
 
     // Toggle: if exists → remove
     const existing = await SaturdayOff.findOne({ user_id: targetUserId, date });
     if (existing) {
       await SaturdayOff.deleteOne({ user_id: targetUserId, date });
-      return res.json({ action: 'removed', date });
+      return res.json({ action: 'removed', date, maxOffs });
     }
 
-    // Max 2 per month
+    // Check max limit set by admin
     const count = await SaturdayOff.countDocuments({ user_id: targetUserId, month });
-    if (count >= 2) {
-      return res.status(400).json({ error: 'A maximum of 2 Saturday offs are allowed per month.' });
+    if (count >= maxOffs) {
+      return res.status(400).json({
+        error: `A maximum of ${maxOffs} Saturday off(s) are allowed per month as set by your admin.`,
+        maxOffs,
+      });
     }
 
     await SaturdayOff.create({
@@ -72,7 +94,7 @@ router.post('/', authenticate, async (req, res) => {
       date,
       month,
     });
-    return res.json({ action: 'added', date });
+    return res.json({ action: 'added', date, maxOffs });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
