@@ -146,8 +146,7 @@ async function sendWelcomeEmail({ toEmail, employeeName, username, password, com
         </div>
 
         <p style="color: #d32f2f; font-size: 13px;">⚠️ Please use the <strong>Employee Login</strong> option only — do not use Admin Login.</p>
-        <p style="font-size: 13px; color: #555;">We recommend changing your password after your first login.</p>
-
+        
         <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 24px 0;" />
         <p style="font-size: 12px; color: #888; margin: 0;">This is an automated email from ${companyName}. Please do not reply.</p>
       </div>
