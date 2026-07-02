@@ -150,19 +150,20 @@ router.post('/', adminOnly, async (req, res) => {
       is_verified:       true,
     });
 
-    return res.status(201).json({ success: true, id: newId });
-
-    // Send welcome email to employee (non-blocking — don't await)
+   // Send welcome email to employee (non-blocking)
     User.findById(req.user.userId, 'companyName fullName').then(admin => {
       const company = admin?.companyName || admin?.fullName || 'Your Company';
       sendWelcomeEmail({
-        toEmail:     loginEmail.trim().toLowerCase(),
+        toEmail:      loginEmail.trim().toLowerCase(),
         employeeName: `${displayName.trim()} ${lName?.trim() || ''}`.trim(),
-        username:    loginEmail.trim().toLowerCase(),
-        password:    loginPass,
-        companyName: company,
+        username:     loginEmail.trim().toLowerCase(),
+        password:     loginPass,
+        companyName:  company,
       }).catch(err => console.error('Welcome email failed:', err.message));
     });
+
+    return res.status(201).json({ success: true, id: newId });
+    
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
