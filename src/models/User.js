@@ -33,7 +33,16 @@ const userSchema = new mongoose.Schema({
   aadhar_no:         { type: String, default: null },
   pan_no:            { type: String, default: null },
   // ── Admin Settings ────────────────────────────────────────────
-  max_saturday_offs: { type: Number, default: 2, min: 0, max: 4 }, // 0=no offs, 4=all Saturdays off
+  max_saturday_offs: { type: Number, default: 2, min: 0, max: 4 },
+
+  // ── Admin Office Policy Settings ─────────────────────────────
+  late_hour:         { type: Number, default: 10 },   // Late after HH:MM
+  late_minute:       { type: Number, default: 15 },
+  half_day_hour:     { type: Number, default: 11 },   // Half day after HH:MM
+  half_day_minute:   { type: Number, default: 30 },
+  max_warnings:      { type: Number, default: 3 },    // Warnings before auto half day
+  lunch_end_hour:    { type: Number, default: 14 },   // Lunch must end by HH:MM
+  lunch_end_minute:  { type: Number, default: 0 },
   // ── OTP for forget password ───────────────────────────────────
   otp:               { type: String, default: null },
   otp_expires:       { type: Date,   default: null },

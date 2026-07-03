@@ -6,15 +6,22 @@ const { adminOnly } = require('../middleware/auth');
 
 /**
  * GET /api/admin/settings
- * Get current admin's settings
  */
 router.get('/', adminOnly, async (req, res) => {
   try {
-    const admin = await User.findById(req.user.userId, 'max_saturday_offs companyName fullName lName email');
+    const admin = await User.findById(req.user.userId,
+      'max_saturday_offs companyName fullName lName email late_hour late_minute half_day_hour half_day_minute max_warnings lunch_end_hour lunch_end_minute');
     if (!admin) return res.status(404).json({ error: 'Admin not found.' });
 
     return res.json({
       max_saturday_offs: admin.max_saturday_offs ?? 2,
+      late_hour:         admin.late_hour         ?? 10,
+      late_minute:       admin.late_minute        ?? 15,
+      half_day_hour:     admin.half_day_hour      ?? 11,
+      half_day_minute:   admin.half_day_minute    ?? 30,
+      max_warnings:      admin.max_warnings       ?? 3,
+      lunch_end_hour:    admin.lunch_end_hour     ?? 14,
+      lunch_end_minute:  admin.lunch_end_minute   ?? 0,
       companyName:       admin.companyName,
       fullName:          admin.fullName,
       lName:             admin.lName,
@@ -27,29 +34,76 @@ router.get('/', adminOnly, async (req, res) => {
 
 /**
  * PUT /api/admin/settings
- * Update admin settings
- * Body: { max_saturday_offs: 0 | 1 | 2 | 3 | 4 }
+ * Body (all optional — send only what you want to change):
+ * {
+ *   max_saturday_offs: 0-4,
+ *   late_hour: 10, late_minute: 15,
+ *   half_day_hour: 11, half_day_minute: 30,
+ *   max_warnings: 3,
+ *   lunch_end_hour: 14, lunch_end_minute: 0
+ * }
  */
 router.put('/', adminOnly, async (req, res) => {
   try {
-    const { max_saturday_offs } = req.body;
+    const {
+      max_saturday_offs,
+      late_hour, late_minute,
+      half_day_hour, half_day_minute,
+      max_warnings,
+      lunch_end_hour, lunch_end_minute,
+    } = req.body;
 
-    if (max_saturday_offs === undefined) {
-      return res.status(400).json({ error: 'max_saturday_offs is required.' });
+    const updates = {};
+
+    // Saturday offs
+    if (max_saturday_offs !== undefined) {
+      const val = Number(max_saturday_offs);
+      if (![0,1,2,3,4].includes(val))
+        return res.status(400).json({ error: 'max_saturday_offs must be 0, 1, 2, 3, or 4.' });
+      updates.max_saturday_offs = val;
     }
 
-    const val = Number(max_saturday_offs);
-    if (![0, 1, 2, 3, 4].includes(val)) {
-      return res.status(400).json({ error: 'max_saturday_offs must be 0, 1, 2, 3, or 4.' });
+    // Late threshold
+    if (late_hour !== undefined) {
+      const h = Number(late_hour), m = Number(late_minute ?? 0);
+      if (h < 0 || h > 23 || m < 0 || m > 59)
+        return res.status(400).json({ error: 'Invalid late_hour or late_minute.' });
+      updates.late_hour   = h;
+      updates.late_minute = m;
     }
 
-    await User.findByIdAndUpdate(req.user.userId, { max_saturday_offs: val });
+    // Half day threshold
+    if (half_day_hour !== undefined) {
+      const h = Number(half_day_hour), m = Number(half_day_minute ?? 0);
+      if (h < 0 || h > 23 || m < 0 || m > 59)
+        return res.status(400).json({ error: 'Invalid half_day_hour or half_day_minute.' });
+      updates.half_day_hour   = h;
+      updates.half_day_minute = m;
+    }
 
-    return res.json({
-      success: true,
-      message: `Saturday offs per month updated to ${val}.`,
-      max_saturday_offs: val,
-    });
+    // Max warnings
+    if (max_warnings !== undefined) {
+      const w = Number(max_warnings);
+      if (w < 1 || w > 10)
+        return res.status(400).json({ error: 'max_warnings must be between 1 and 10.' });
+      updates.max_warnings = w;
+    }
+
+    // Lunch end time
+    if (lunch_end_hour !== undefined) {
+      const h = Number(lunch_end_hour), m = Number(lunch_end_minute ?? 0);
+      if (h < 0 || h > 23 || m < 0 || m > 59)
+        return res.status(400).json({ error: 'Invalid lunch_end_hour or lunch_end_minute.' });
+      updates.lunch_end_hour   = h;
+      updates.lunch_end_minute = m;
+    }
+
+    if (Object.keys(updates).length === 0)
+      return res.status(400).json({ error: 'No valid fields to update.' });
+
+    await User.findByIdAndUpdate(req.user.userId, updates);
+
+    return res.json({ success: true, updated: updates });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
