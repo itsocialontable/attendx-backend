@@ -4,6 +4,7 @@ const express = require('express');
 const router  = express.Router();
 const Leave   = require('../models/Leave');
 const User    = require('../models/User');
+const Notification = require('../models/Notification');
 const { uid } = require('../utils/helpers');
 const { authenticate, adminOnly } = require('../middleware/auth');
 
@@ -131,6 +132,21 @@ router.post('/', authenticate, async (req, res) => {
       status:     'pending',
     });
 
+    // Notify the employee's admin so it shows up on their dashboard
+    const applicant = await User.findById(userId, 'admin_id name fullName lName');
+    if (applicant && applicant.admin_id) {
+      const applicantName = applicant.name || `${applicant.fullName || ''} ${applicant.lName || ''}`.trim() || 'An employee';
+      const leaveLabel = type === 'half_day' ? 'Half Day' : `${type.charAt(0).toUpperCase()}${type.slice(1)} Leave`;
+      await Notification.create({
+        _id:        uid(),
+        user_id:    applicant.admin_id,
+        title:      'New Leave Request',
+        message:    `${applicantName} has applied for ${leaveLabel} (${from}${toDate !== from ? ' to ' + toDate : ''}). Please review and approve/reject.`,
+        type:       'leave',
+        created_at: new Date().toISOString(),
+      });
+    }
+
     return res.status(201).json({ success: true, id: leaveId });
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -158,6 +174,20 @@ router.put('/:id', adminOnly, async (req, res) => {
     }
 
     await Leave.findByIdAndUpdate(req.params.id, { status });
+
+    // Notify the employee about the decision
+    if (status === 'approved' || status === 'rejected') {
+      const leaveLabel = leave.type === 'half_day' ? 'Half Day' : `${leave.type.charAt(0).toUpperCase()}${leave.type.slice(1)} Leave`;
+      await Notification.create({
+        _id:        uid(),
+        user_id:    leave.user_id,
+        title:      status === 'approved' ? 'Leave Approved ✅' : 'Leave Rejected ❌',
+        message:    `Your ${leaveLabel} request (${leave.from_date}${leave.to_date !== leave.from_date ? ' to ' + leave.to_date : ''}) has been ${status}.`,
+        type:       'leave',
+        created_at: new Date().toISOString(),
+      });
+    }
+
     return res.json({ success: true });
   } catch (err) {
     return res.status(500).json({ error: err.message });

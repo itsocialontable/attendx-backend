@@ -43,6 +43,10 @@ const userSchema = new mongoose.Schema({
   max_warnings:      { type: Number, default: 3 },    // Warnings before auto half day
   lunch_end_hour:    { type: Number, default: 14 },   // Lunch must end by HH:MM
   lunch_end_minute:  { type: Number, default: 0 },
+  office_start_hour:   { type: Number, default: 10 }, // Office opens at HH:MM (24hr)
+  office_start_minute: { type: Number, default: 0 },
+  office_end_hour:     { type: Number, default: 18 }, // Office closes at HH:MM (24hr)
+  office_end_minute:   { type: Number, default: 30 },
   // ── OTP for forget password ───────────────────────────────────
   otp:               { type: String, default: null },
   otp_expires:       { type: Date,   default: null },

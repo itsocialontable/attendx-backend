@@ -12,6 +12,19 @@ function fixTime(val) {
   return String(val).substring(0, 5);
 }
 
+// "HH:MM" (24hr) -> "10:05 AM" / "06:30 PM" (12hr with AM/PM)
+function to12Hour(timeStr) {
+  if (!timeStr) return null;
+  const clean = String(timeStr).substring(0, 5);
+  const parts = clean.split(':').map(Number);
+  const h = parts[0], m = parts[1];
+  if (isNaN(h) || isNaN(m)) return null;
+  const period = h >= 12 ? 'PM' : 'AM';
+  let h12 = h % 12;
+  if (h12 === 0) h12 = 12;
+  return `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`;
+}
+
 // Fix attendance record types for Flutter JSON
 function fixRecord(r) {
   const obj = r.toObject ? r.toObject() : { ...r };
@@ -21,8 +34,12 @@ function fixRecord(r) {
     date:               String(obj.date || ''),
     check_in:           fixTime(obj.check_in),
     check_out:          fixTime(obj.check_out),
+    check_in_ampm:      to12Hour(obj.check_in),
+    check_out_ampm:     to12Hour(obj.check_out),
     lunch_in:           fixTime(obj.lunch_in),
     lunch_out:          fixTime(obj.lunch_out),
+    lunch_in_ampm:      to12Hour(obj.lunch_in),
+    lunch_out_ampm:     to12Hour(obj.lunch_out),
     net_mins:           parseInt(obj.net_mins || 0),
     break_mins:         parseInt(obj.break_mins || 0),
     is_late:            !!obj.is_late,
@@ -72,4 +89,4 @@ function isValidEmail(email) {
   return re.test(email.trim());
 }
 
-module.exports = { uid, fixTime, fixRecord, nowIST, todayIST, timeNowIST, toMins, isValidEmail };
+module.exports = { uid, fixTime, fixRecord, nowIST, todayIST, timeNowIST, toMins, to12Hour, isValidEmail };
