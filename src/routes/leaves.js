@@ -15,6 +15,7 @@ function fmtLeave(l, userInfo) {
     user_id:     obj.user_id,
     name:        userInfo?.name        || '',
     designation: userInfo?.designation || '',
+    dept:        userInfo?.dept        || '',
     type:        obj.type,
     from_date:   obj.from_date  || '',
     to_date:     obj.to_date    || '',
@@ -56,11 +57,12 @@ router.get('/', authenticate, async (req, res) => {
     const enriched = await Promise.all(rows.map(async (row) => {
       let userInfo = userCache[row.user_id];
       if (!userInfo) {
-        const u = await User.findById(row.user_id, 'name fullName lName designation');
+        const u = await User.findById(row.user_id, 'name fullName lName designation dept');
         userInfo = u ? {
           name:        u.name || `${u.fullName || ''} ${u.lName || ''}`.trim(),
           designation: u.designation || '',
-        } : { name: '', designation: '' };
+          dept:        u.dept || '',
+        } : { name: '', designation: '', dept: '' };
         userCache[row.user_id] = userInfo;
       }
       return fmtLeave(row, userInfo);

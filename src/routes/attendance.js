@@ -566,14 +566,33 @@ router.put('/:id', adminOnly, async (req, res) => {
       return res.status(403).json({ error: 'Access denied. This record does not belong to your employee.' });
     }
 
-    const { checkIn, checkOut, location } = req.body;
+    const { checkIn, checkOut, location, status, net_mins } = req.body;
+    const normalizedStatus = String(status || '').trim().toLowerCase().replace(/\s+/g, '_'); // "Half Day" -> "half_day"
 
     if (checkIn)   record.check_in  = checkIn;
     if (checkOut)  record.check_out = checkOut;
     if (location)  record.checkin_location = location;
 
-    // Recalculate timing flags if checkIn changed
-    if (checkIn) {
+    if (normalizedStatus === 'absent') {
+      // Explicitly marking Absent — clear check-in/out
+      record.check_in    = null;
+      record.check_out   = null;
+      record.is_half_day = false;
+      record.is_late     = false;
+      record.net_mins    = 0;
+      record.status      = 'absent';
+    } else if (normalizedStatus === 'half_day') {
+      // Explicitly marking Half Day — keep whatever checkIn/checkOut were sent
+      record.is_half_day = true;
+      record.is_late     = false;
+      record.status      = 'half_day';
+    } else if (normalizedStatus === 'present') {
+      record.is_half_day = false;
+      record.status      = 'present';
+    }
+
+    // Recalculate timing flags from checkIn only when no explicit status override was given
+    if (checkIn && !normalizedStatus) {
       const policy      = await getAdminPolicy(record.user_id);
       const LATE_THRESH = policy?.LATE_THRESH    ?? (DEFAULT_LATE_HOUR * 60 + DEFAULT_LATE_MINUTE);
       const HALF_THRESH = policy?.HALF_DAY_THRESH ?? (DEFAULT_HALF_DAY_HOUR * 60 + DEFAULT_HALF_DAY_MINUTE);
@@ -584,11 +603,19 @@ router.put('/:id', adminOnly, async (req, res) => {
 
       record.is_half_day = isDirectHalfDay;
       record.is_late     = isLateArrival && !isDirectHalfDay;
+      record.status      = isDirectHalfDay ? 'half_day' : 'present';
     }
 
-    // Recalculate net_mins if both times present
-    if (record.check_in && record.check_out) {
+    // Use net_mins sent by frontend if provided, otherwise recalc from check_in/check_out
+    if (typeof net_mins === 'number') {
+      record.net_mins = net_mins;
+    } else if (record.check_in && record.check_out) {
       record.net_mins = Math.max(0, toMins(String(record.check_out).substring(0,5)) - toMins(String(record.check_in).substring(0,5)));
+    }
+
+    // Fallback: keep status in sync if it was never set on this record before
+    if (!record.status) {
+      record.status = record.is_half_day ? 'half_day' : (record.check_in ? 'present' : 'absent');
     }
 
     await record.save();
