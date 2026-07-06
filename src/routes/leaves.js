@@ -7,19 +7,21 @@ const User    = require('../models/User');
 const { uid } = require('../utils/helpers');
 const { authenticate, adminOnly } = require('../middleware/auth');
 
-function fmtLeave(l) {
+function fmtLeave(l, userInfo) {
   const obj = l.toObject ? l.toObject() : l;
   return {
-    id:         obj._id,
-    user_id:    obj.user_id,
-    type:       obj.type,
-    from_date:  obj.from_date  || '',
-    to_date:    obj.to_date    || '',
-    days:       parseFloat(obj.days || 1),
-    session:    obj.session    || null,
-    reason:     obj.reason     || '',
-    applied_on: obj.applied_on || '',
-    status:     obj.status,
+    id:          obj._id,
+    user_id:     obj.user_id,
+    name:        userInfo?.name        || '',
+    designation: userInfo?.designation || '',
+    type:        obj.type,
+    from_date:   obj.from_date  || '',
+    to_date:     obj.to_date    || '',
+    days:        parseFloat(obj.days || 1),
+    session:     obj.session    || null,
+    reason:      obj.reason     || '',
+    applied_on:  obj.applied_on || '',
+    status:      obj.status,
   };
 }
 
@@ -47,7 +49,23 @@ router.get('/', authenticate, async (req, res) => {
     if (req.query.status) filter.status = req.query.status;
 
     const rows = await Leave.find(filter).sort({ applied_on: -1 });
-    return res.json(rows.map(fmtLeave));
+
+    // Enrich each leave with employee name + designation
+    const userCache = {};
+    const enriched = await Promise.all(rows.map(async (row) => {
+      let userInfo = userCache[row.user_id];
+      if (!userInfo) {
+        const u = await User.findById(row.user_id, 'name fullName lName designation');
+        userInfo = u ? {
+          name:        u.name || `${u.fullName || ''} ${u.lName || ''}`.trim(),
+          designation: u.designation || '',
+        } : { name: '', designation: '' };
+        userCache[row.user_id] = userInfo;
+      }
+      return fmtLeave(row, userInfo);
+    }));
+
+    return res.json(enriched);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

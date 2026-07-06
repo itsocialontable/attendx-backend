@@ -171,11 +171,19 @@ router.get('/all', adminOnly, async (req, res) => {
 
 /**
  * POST /api/salary/calculate  — same as GET but via POST body
- * Body: { userId, month }
+ * Body: { userId, month }  OR  { userId, fromDate, toDate }
+ * (if month isn't sent, it's derived from fromDate as YYYY-MM)
  */
 router.post('/calculate', authenticate, async (req, res) => {
   try {
-    const { userId, month } = req.body;
+    const { userId, fromDate, toDate } = req.body;
+    let { month } = req.body;
+
+    // Flutter app sends fromDate/toDate instead of month — derive it
+    if (!month && fromDate) {
+      month = String(fromDate).substring(0, 7); // "2026-07-06" -> "2026-07"
+    }
+
     if (!userId || !month) return res.status(400).json({ error: 'userId and month (YYYY-MM) are required.' });
 
     if (req.user.role === 'employee' && req.user.userId !== userId)
@@ -189,6 +197,8 @@ router.post('/calculate', authenticate, async (req, res) => {
 
     return res.json({
       userId, month,
+      fromDate: fromDate || null,
+      toDate:   toDate   || null,
       userName:    data.user.name,
       dept:        data.user.dept || '',
       designation: data.user.designation || '',

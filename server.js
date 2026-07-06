@@ -35,6 +35,7 @@ app.use('/api/documents',       require('./src/routes/documents'));
 app.use('/api/dashboard',       require('./src/routes/dashboard'));
 app.use('/api/reviews',         require('./src/routes/reviews'));
 app.use('/api/notifications',   require('./src/routes/notifications'));
+app.use('/api/admin/settings',  require('./src/routes/adminSettings'));
 // Note: /api/saturday-offs removed — Saturdays are now working days
 
 // ── HEALTH CHECK ──────────────────────────────────────────────────

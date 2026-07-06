@@ -13,6 +13,7 @@ const attendanceSchema = new mongoose.Schema({
   break_mins:         { type: Number, default: 0 },
   is_late:            { type: Boolean, default: false },
   is_half_day:        { type: Boolean, default: false },
+  status:             { type: String, enum: ['present', 'half_day', 'absent'], default: 'present' },
   checkin_location:   { type: String, default: null },
   checkout_location:  { type: String, default: null },
   lunch_in_location:  { type: String, default: null },

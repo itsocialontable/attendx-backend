@@ -27,6 +27,7 @@ function fixRecord(r) {
     break_mins:         parseInt(obj.break_mins || 0),
     is_late:            !!obj.is_late,
     is_half_day:        !!obj.is_half_day,
+    status:             obj.status || (obj.check_in ? (obj.is_half_day ? 'half_day' : 'present') : 'absent'),
     checkin_location:   obj.checkin_location  || null,
     checkout_location:  obj.checkout_location || null,
     lunch_in_location:  obj.lunch_in_location || null,

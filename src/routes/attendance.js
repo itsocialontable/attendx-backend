@@ -50,6 +50,7 @@ async function getAdminPolicy(userId) {
  * GET /api/attendance
  * Query params: userId, date, fromDate, toDate
  * Response now includes name, designation, workingHours, isLate, isHalfDay
+ * Response shape: { summary: { all, present, absent, halfDay, late }, records: [...] }
  */
 router.get('/', authenticate, async (req, res) => {
   try {
@@ -108,7 +109,16 @@ router.get('/', authenticate, async (req, res) => {
       };
     }));
 
-    return res.json(enriched);
+    // ── Summary counts for admin panel tabs (All / Present / Late / Half Day / Absent) ──
+    const summary = { all: enriched.length, present: 0, absent: 0, halfDay: 0, late: 0 };
+    enriched.forEach((r) => {
+      if (r.status === 'absent')        summary.absent++;
+      else if (r.status === 'half_day') summary.halfDay++;
+      else                               summary.present++;
+      if (r.isLate) summary.late++;
+    });
+
+    return res.json({ summary, records: enriched });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -438,17 +448,26 @@ router.post('/verify-location', authenticate, async (req, res) => {
 
 /**
  * POST /api/attendance/admin-add
- * Admin manually add attendance — checkIn AND checkOut both required
- * Blocks if employee already has a check-in for that date
- * Only allows adding for admin's own employees
+ * Admin manually add attendance for an employee.
+ * - status: "Absent"  -> only userId + date required (checkIn/checkOut NOT needed)
+ * - status: "Present"/"Half Day"/omitted -> checkIn AND checkOut both required (old behaviour)
+ * Blocks if employee already has a check-in for that date.
+ * Only allows adding for admin's own employees.
  */
 router.post('/admin-add', adminOnly, async (req, res) => {
   try {
-    const { userId, date, checkIn, checkOut, location } = req.body;
+    const { userId, date, checkIn, checkOut, location, status } = req.body;
 
-    // All 4 fields required
-    if (!userId || !date || !checkIn || !checkOut) {
-      return res.status(400).json({ error: 'userId, date, checkIn and checkOut are all required.' });
+    if (!userId || !date) {
+      return res.status(400).json({ error: 'userId and date are required.' });
+    }
+
+    const normalizedStatus = String(status || '').trim().toLowerCase();
+    const isAbsent = normalizedStatus === 'absent';
+
+    // checkIn/checkOut only required when NOT marking Absent
+    if (!isAbsent && (!checkIn || !checkOut)) {
+      return res.status(400).json({ error: 'checkIn and checkOut are required (unless status is "Absent").' });
     }
 
     // Ownership check — employee must belong to this admin
@@ -458,7 +477,7 @@ router.post('/admin-add', adminOnly, async (req, res) => {
       return res.status(403).json({ error: 'Access denied. This employee does not belong to your account.' });
     }
 
-    // Already checked in? Block it
+    // Already checked in? Block it (applies whether marking present or absent)
     const existing = await Attendance.findOne({ user_id: userId, date });
     if (existing && existing.check_in) {
       return res.status(409).json({
@@ -468,6 +487,34 @@ router.post('/admin-add', adminOnly, async (req, res) => {
       });
     }
 
+    // ── Marking Absent: no checkIn/checkOut needed ──────────────
+    if (isAbsent) {
+      const recordId = existing ? existing._id : uid();
+      await Attendance.findOneAndUpdate(
+        { user_id: userId, date },
+        {
+          $setOnInsert: { _id: recordId, user_id: userId, date },
+          $set: {
+            check_in:         null,
+            check_out:        null,
+            net_mins:         0,
+            is_late:          false,
+            is_half_day:      false,
+            status:           'absent',
+            checkin_location: location || 'Marked absent by admin',
+          },
+        },
+        { upsert: true, new: true }
+      );
+
+      return res.status(201).json({
+        success: true,
+        id:      recordId,
+        status:  'absent',
+      });
+    }
+
+    // ── Marking Present / Half Day: checkIn & checkOut required ─
     // Get admin policy for timing rules
     const policy        = await getAdminPolicy(userId);
     const LATE_THRESH   = policy?.LATE_THRESH    ?? (DEFAULT_LATE_HOUR * 60 + DEFAULT_LATE_MINUTE);
@@ -488,6 +535,7 @@ router.post('/admin-add', adminOnly, async (req, res) => {
       net_mins:         netMins,
       is_late:          isLateArrival && !isDirectHalfDay,
       is_half_day:      isDirectHalfDay,
+      status:           isDirectHalfDay ? 'half_day' : 'present',
       checkin_location: location || 'Added by admin',
     });
 
