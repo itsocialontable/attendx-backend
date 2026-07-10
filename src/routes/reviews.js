@@ -245,7 +245,8 @@ router.get('/employee/:userId', authenticate, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────
 router.get('/admin/all', adminOnly, async (req, res) => {
   try {
-    const filter = {};
+    // Only this admin's own reviews — not every admin's reviews in the system.
+    const filter = { admin_id: req.user.userId };
     if (req.query.userId) filter.user_id = req.query.userId;
     if (req.query.month)  filter.month   = req.query.month;
 
